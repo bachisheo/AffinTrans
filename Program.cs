@@ -15,7 +15,6 @@ namespace AffinTransformation
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             AffinForm form = new AffinForm();
-           
             Application.Run(form);
             
         }

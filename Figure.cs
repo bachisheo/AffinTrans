@@ -63,7 +63,7 @@ namespace AffinTransformation
                 x = float.Parse(text[ind++]);
                 y = float.Parse(text[ind++]);
                 z = float.Parse(text[ind++]);
-                AddDot(x, y, x);
+                AddDot(x, y, z);
             }
 
             for (int i = 0; i < lineCount; i++)
@@ -90,31 +90,7 @@ namespace AffinTransformation
         {
             return dots[index];
         }
-        ///Перенос
-        public Figure Translation(float dx, float dy, float dz)
-        {
-            float[,] matrix = new float[4, 4];
-            for (int i = 0; i < 4; i++)
-                matrix[i, i] = 1;
-            matrix[3, 0] = dx;
-            matrix[3, 1] = dy;
-            matrix[3, 2] = dz;
-            return Product(matrix);
-        }
-        public Figure Reflection(bool rx, bool ry, bool rz) {
-            float[,] matrix = new float[4, 4];
-            matrix[0,0] = rx ? -1 : 1;
-            matrix[1,1] = ry ? -1 : 1;
-            matrix[2,2] = rz ? -1 : 1;
-            matrix[3,3] = 1;
-            return Product(matrix);
-
-        }
-
-        /* public Figure Dilatation(float ax, float ay, float az) { }
-         public Figure RotationX(float angle) { }
-         public Figure RotationY(float angle) { }
-         public Figure RotationZ(float angle) { }*/
+      
         public Figure Product(float[,] matrix)
         {
             Figure prod = new Figure();
