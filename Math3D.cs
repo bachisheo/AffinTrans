@@ -18,15 +18,8 @@ namespace AffinTransformation
             normal.h = normal.x * dot1.x + normal.y * dot1.y + normal.z * dot1.z;
             return normal;
         }
-
-        public static bool IsOnSurface(Line line, Dot surfaceNormal)
-        {
-            var dot = line.getADot();
-            var res1 = surfaceNormal.x * dot.x + surfaceNormal.y * dot.y + surfaceNormal.z * dot.z;
-            dot = line.getADot();
-            var res2 = surfaceNormal.x * dot.x + surfaceNormal.y * dot.y + surfaceNormal.z * dot.z;
-            return Math.Abs(res1 - surfaceNormal.h) < TOLERANCE && Math.Abs(res2 - surfaceNormal.h) < TOLERANCE;
-        }
+    
+  
 
     }
 }

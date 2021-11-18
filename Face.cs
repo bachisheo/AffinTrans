@@ -16,27 +16,6 @@ namespace AffinTransformation
             _normal = normal;
             _lines = new List<Line>();
         }
-        public Face(Line line1, Line line2)
-        {
-            var a1 = line1.getADot();
-            var b1 = line2.getBDot();
-            var a2 = line2.getADot();
-            var b2 = line2.getBDot();
-            if (a2 == a1 || a2 == b1)
-                _normal = Math3D.GetNormalOfSurface(a1, b1, b2);
-            else if(b2 == a1 || b2 == b1)
-                _normal = Math3D.GetNormalOfSurface(a1, b1, a2);
-            else
-                throw new ArgumentException("The lines have no common points");
-            _lines = new List<Line>();
-            _lines.Add(line1);
-            _lines.Add(line2);
-        }
-
-        public void AddLine(Line line)
-        {
-            if (Math3D.IsOnSurface(line, _normal))
-                _lines.Add(line);
-        }
+ 
     }
 }
