@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.Eventing.Reader;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -16,6 +17,11 @@ namespace AffinTransformation
         private int axesLenght = 350;
         private const int animTick = 75;
         private int currentTick;
+        private Bitmap myBitmap;
+        Random r = new Random(255);
+        private WarnockAlgorithm wa = new WarnockAlgorithm();
+        private bool bad = true;
+        private bool isWarn = false;
         //animated distance
         private Dot animated;
         private Dot diff;
@@ -28,20 +34,20 @@ namespace AffinTransformation
             get => figurs[_movableId];
         }
     
-        Figure axes;
+        LineFigure axes;
         //speed - delta points in one timer's tik
         Dot DeltaA = new Dot(0, 0, 0, 1), DeltaB = new Dot(0, 0, 0, 1);
         bool mbA = false, mbB = false;
         Dot A = new Dot(0, 0, 0, 1), B = new Dot(0, 0, 0, 1);
         public AffinForm()
         {
-
+            AF.wa = wa;
             figurs = new List<Figure>();
-            _emptyFigure = new Figure();
+            _emptyFigure = new PolyFigure();
             _emptyFigure.AddDot(0,0,0);
             _movableId = 0;
             figurs.Add(_emptyFigure);
-            axes = new Figure();
+            axes = new LineFigure();
             axes.AddDot(0, 0, 0);
             axes.AddDot(axesLenght, 0, 0);
             axes.AddDot(0, axesLenght, 0);
@@ -52,6 +58,7 @@ namespace AffinTransformation
             axes.AddLine(0, 2);
             axes.AddLine(0, 3);
             axes.AddLine(4, 5);
+            axes.Color = Color.Red;
             InitializeComponent();
         }
 
@@ -61,10 +68,19 @@ namespace AffinTransformation
 
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            AF.Paint(axes, new Pen(Color.Red, 1), e);
-            foreach(var fig in figurs)
-                AF.Paint(fig, new Pen(fig.Color, 1), e);
-                AF.Paint(_movableFigure, new Pen(_movableFigure.Color, 1), e);
+            if (bad || myBitmap == null)
+            {
+                myBitmap = AF.GetBitMap(figurs, e);
+                bad = false;
+            }
+            else if (isWarn)
+            {
+                myBitmap = AF.GetIterateBitMap(figurs, e);
+            }
+            AF.DrawLineFigure(axes, e);
+            e.Graphics.DrawImage(myBitmap, new Point(0,0));
+            //AF.DrawPolyFigure((PolyFigure)_movableFigure, e);
+
         }
         private void Transfer_Click(object sender, EventArgs e)
         {
@@ -78,11 +94,15 @@ namespace AffinTransformation
                 case "--Y": _movableFigure = AF.Translation(_movableFigure, 0, -deltaTrans, 0); break;
                 case "--Z": _movableFigure = AF.Translation(_movableFigure, 0, 0, -deltaTrans); break;
             }
+            bad = true;
+
             Refresh();
         }
        
         private void buttonReset_Click(object sender, EventArgs e)
         {
+            bad = true;
+
             _movableFigure.Reset();
             Refresh();
         }
@@ -90,6 +110,8 @@ namespace AffinTransformation
         
         private void Dialatation_Click(object sender, EventArgs e)
         {
+            bad = true;
+
             Button but = (Button)sender;
             switch (but.Text)
             {
@@ -104,6 +126,8 @@ namespace AffinTransformation
         } 
         private void Rotation_Click(object sender, EventArgs e)
         {
+            bad = true;
+
             Button but = (Button)sender;
             switch (but.Text)
             {
@@ -119,6 +143,8 @@ namespace AffinTransformation
 
         private void RefButton_Click(object sender, EventArgs e)
         {
+            bad = true;
+
             Button but = (Button)sender;
             switch (but.Text)
             {
@@ -132,6 +158,8 @@ namespace AffinTransformation
     
         private void MoveByLine_Click(object sender, EventArgs e)
         {
+            bad = true;
+
             Dot div = new Dot(AF.x0, AF.y0, 0, 0);
             A.x = labA.Left - (int)AF.x0;
             A.y = -(labA.Top - (int)AF.y0);
@@ -150,6 +178,7 @@ namespace AffinTransformation
 
         float Progress(int curTick)
         {
+
             float x = (1f * curTick) / animTick;
             return -(x - 1)*(x - 1) + 1; 
         }
@@ -162,7 +191,9 @@ namespace AffinTransformation
         }
         private void timer1_Tick(object sender, EventArgs e)
         {
-            if(++currentTick == animTick)
+            bad = true;
+
+            if (++currentTick == animTick)
             {
                 timer1.Stop();
             }
@@ -172,14 +203,17 @@ namespace AffinTransformation
 
         private void AddNewFigure(object sender, EventArgs e)
         {
+
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
                 TextReader tr = File.OpenText(openFileDialog1.FileName);
 
-                figurs.Add(new Figure());
+                figurs.Add(new PolyFigure());
                 _movableId = figurs.Count - 1;
-                _movableFigure.Input(tr);
+                ((PolyFigure)_movableFigure).Input(tr);
+                _movableFigure.Color = Color.FromArgb(r.Next(255), r.Next(255), r.Next(255));
                 tr.Close();
+                bad = true;
                 this.Refresh();
             }
         }
@@ -220,6 +254,28 @@ namespace AffinTransformation
             mbB = false;
             DeltaB.x = 0;
             DeltaB.y = 0;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            isWarn = true;
+            wa.StartIterateDraw();
+            timer2.Start();
+            
+        }
+
+        private void timer2_Tick(object sender, EventArgs e)
+        {
+            Refresh();
+            if (wa.IsIterateDrawing())
+            {
+                Refresh();
+            }
+            else
+            {
+                isWarn = false;
+                timer2.Stop();
+            }
         }
 
         private void labA_MouseMove(object sender, MouseEventArgs e)

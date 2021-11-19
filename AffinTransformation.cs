@@ -5,12 +5,12 @@ using System.Windows.Forms;
 
 namespace AffinTransformation
 {
-    
+
     public static class AffinTransformation
     {
-
-        public static int x0 = 200, y0 = 400, z0 = 400;
+        public static int x0 = 200, y0 = 400, z0 = 0;
         public static Dot axes = new Dot(x0, y0, z0, 1);
+        public  static WarnockAlgorithm wa = new WarnockAlgorithm();
         static public Figure Rotation(Figure fig, char axes, float angle)
         {
             switch (axes)
@@ -81,24 +81,91 @@ namespace AffinTransformation
             matrix[0, 0] = 1; matrix[1, 1] = 1;
             matrix[2, 0] = (float)(f * Math.Cos((45 * Math.PI) / 180.0));
             matrix[2, 1] = (float)(f * Math.Sin((45 * Math.PI) / 180.0));
+            matrix[2, 2] = 1;
             matrix[3, 3] = 1;
             return fig.Product(matrix);
         }
-        static public void Paint(List<Figure> figs, Pen pen, PaintEventArgs e)
+        static public void DrawLineFigure(List<Figure> figs, PaintEventArgs e)
         {
-            foreach(Figure f in figs)
-                Paint(f, pen, e);
+            var pols = new List<PolyFigure>();
+            foreach (Figure f in figs)
+            {
+                if (f.GetType().Name == typeof(LineFigure).Name)
+                {
+                    DrawLineFigure((LineFigure)f, e);
+                }
+            }
         }
-        static public void Paint(Figure fig, Pen pen, PaintEventArgs e)
+
+        static public Bitmap GetBitMap(List<Figure> figs, PaintEventArgs e)
         {
-            Figure _2d = Project(fig);
-            _2d = Reflection(_2d, false, true, false);
-            _2d = Translation(_2d, x0, y0, z0);
-            foreach (Line line in _2d.GetLines())
+            var pols = new List<PolyFigure>();
+            foreach (Figure f in figs)
+            {
+                if (f.GetType().Name == typeof(PolyFigure).Name)
+                {
+                    ((PolyFigure)f).CalculateNormals();
+                    PolyFigure _2d = (PolyFigure)Project(f);
+                    _2d = (PolyFigure)Reflection(_2d, false, true, false);
+                    _2d = (PolyFigure)Translation(_2d, x0, y0, z0);
+                    _2d.CalculateNormals();
+                    pols.Add(_2d);
+                }
+            }
+            return wa.CreateBitmapOfAll(pols, e);
+        }
+        static public Bitmap GetIterateBitMap(List<Figure> figs, PaintEventArgs e)
+        {
+            if (wa.isNotInitIterate)
+            {
+                var pols = new List<PolyFigure>();
+                foreach (Figure f in figs)
+                {
+                    if (f.GetType().Name == typeof(PolyFigure).Name)
+                    {
+                        ((PolyFigure)f).CalculateNormals();
+                        PolyFigure _2d = (PolyFigure)Project(f);
+                        _2d = (PolyFigure)Reflection(_2d, false, true, false);
+                        _2d = (PolyFigure)Translation(_2d, x0, y0, z0);
+                        _2d.CalculateNormals();
+                        pols.Add(_2d);
+                    }
+
+                    wa.InitIterateDraw(pols, e);
+                }
+            }
+
+            return wa.CreateBitmapOfIteration(e);
+        }
+        static public void DrawPolyFigure(PolyFigure fig, PaintEventArgs e)
+        {
+            PolyFigure _2d = (PolyFigure)Project(fig);
+            _2d = (PolyFigure)Reflection(_2d, false, true, false);
+            _2d = (PolyFigure)Translation(_2d, x0, y0, z0);
+            foreach (var line in _2d.GetPolygon())
+            {
+                Dot a = _2d.GetDot(line.aIndex);
+                Dot b = _2d.GetDot(line.bIndex);
+                Dot c = _2d.GetDot(line.cIndex);
+                Point[] points = new Point[]
+                    { new Point((int)a.x, (int)a.y), new Point((int)b.x, (int)b.y), new Point((int)c.x, (int)c.y) };
+                using (Brush br = new SolidBrush(fig.Color))
+                {
+                    e.Graphics.FillPolygon(br, points);
+                }
+            }
+        }
+
+        static public void DrawLineFigure(LineFigure fig, PaintEventArgs e)
+        {
+            LineFigure _2d = (LineFigure)Project(fig);
+            _2d = (LineFigure)Reflection(_2d, false, true, false);
+            _2d = (LineFigure)Translation(_2d, x0, y0, z0);
+            foreach (var line in _2d.GetLines())
             {
                 Dot a = _2d.GetDot(line.aNum);
                 Dot b = _2d.GetDot(line.bNum);
-                e.Graphics.DrawLine(pen, a.x, a.y, b.x, b.y);
+                e.Graphics.DrawLine(new Pen(_2d.Color), a.x, a.y, b.x, b.y);
             }
         }
         public static Figure Translation(Figure fig, Dot delta)
@@ -115,5 +182,8 @@ namespace AffinTransformation
             matrix[3, 2] = dz;
             return fig.Product(matrix);
         }
+
+
+
     }
 }
