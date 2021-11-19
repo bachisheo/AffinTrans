@@ -98,11 +98,21 @@ namespace AffinTransformation
             var prod3 = VectorProd(polygon.c, pixel, polygon.c, polygon.a);
             return (prod1 >= 0 && prod2 >= 0 && prod3 >= 0 || prod1 <= 0 && prod2 <= 0 && prod3 <= 0);
         }
+
+        bool isIntersect(Dot a1, Dot b1, Dot a2, Dot b2)
+        {
+            var prod1 = VectorProd(a1, b1, a1, a2);
+            var prod2 = VectorProd(a1, b1, a1, b2);
+            return prod1 * prod2 < 0;
+        }
         private void Iteration()
         {
             var par = _paramsStack.Pop();
             var activePolygons = new List<Polygon>();
             var rectf = (RectangleF)(par.rect);
+            var r = par.rect;
+            int halfWidth = r.Width / 2;
+            int halfHeight = r.Height / 2;
             foreach (var polyg in par._activePolygons)
             {
                 //check
@@ -110,12 +120,40 @@ namespace AffinTransformation
                     activePolygons.Add(polyg);
             }
 
+            if (activePolygons.Count == 1)
+            {
+                //check on overloap
+                int intersecCount = 0;
+                var pol = activePolygons[0];
+                bool a = IsIn(r.X, r.Y, pol),
+                    b = IsIn(r.X + r.Width, r.Y, pol),
+                    c = IsIn(r.X, r.Y + r.Height, pol),
+                    d = IsIn(r.X + r.Width, r.Y + r.Height, pol);
+                if ( a && b && c && d)
+                {
+                    var delta = Math.Abs(ScalarProd(new Dot(0, 0, 1, 1), pol.normal));
+
+                    int R, G, B;
+                    R = (int)(pol.color.R * delta);
+                    G = (int)(pol.color.G * delta);
+                    B = (int)(pol.color.B * delta);
+
+                    var color = Color.FromArgb(R, G, B);
+                    for (int i = par.rect.X; i < par.rect.X + par.rect.Width; i++)
+                        for (int j = par.rect.Y; j < par.rect.Y + par.rect.Height; j++)
+                        {
+                            currentMap.SetPixel(i,j, color);
+                        }
+
+                    return;
+                }
+
+            }
+          
 
             if (activePolygons.Count > 0)
             {
-                var r = par.rect;
-                int halfWidth = r.Width / 2;
-                int halfHeight = r.Height / 2;
+                
 
                 if (r.Width == 1 && r.Height == 1)
                 {
@@ -154,7 +192,7 @@ namespace AffinTransformation
                 {
                     _paramsStack.Push(new Params(activePolygons, r.X, r.Y, r.Width, halfHeight));
                     _paramsStack.Push(new Params(activePolygons, r.X, r.Y + halfHeight, r.Width, r.Height - halfHeight));
-                  
+
                 }
                 else if (r.Height == 1)
                 {
@@ -185,7 +223,7 @@ namespace AffinTransformation
         {
             var screen = e.ClipRectangle;
             currentMap = new Bitmap(screen.Width, screen.Height);
-            
+
             x0 = AffinTransformation.x0;
             y0 = AffinTransformation.y0;
             z0 = AffinTransformation.z0;
@@ -198,7 +236,7 @@ namespace AffinTransformation
             return currentMap;
         }
 
-        public Bitmap CreateBitmapOfIteration( PaintEventArgs e)
+        public Bitmap CreateBitmapOfIteration(PaintEventArgs e)
         {
             if (_paramsStack.Count == 0)
             {
@@ -206,7 +244,7 @@ namespace AffinTransformation
                 return currentMap;
 
             }
-            var a =_paramsStack.Peek();
+            var a = _paramsStack.Peek();
 
             Iteration();
             return currentMap;
@@ -231,7 +269,7 @@ namespace AffinTransformation
         }
         public bool IsIterateDrawing()
         {
-            return isIterate ;
+            return isIterate;
         }
     }
 }
