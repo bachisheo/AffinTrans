@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Windows.Forms;
 
 namespace AffinTransformation
@@ -70,12 +71,21 @@ namespace AffinTransformation
             return VectorProd(b1.x - a1.x, b1.y - a1.y, b2.x - a2.x, b2.y - a2.y);
 
         }
-
+        float VectorProd(float x1, float y1, float x2, float y2)
+        {
+            return x1 * y2 - y1 * x2;
+        }
         Dot Vector(Dot a, Dot b)
         {
             return new Dot(b.x - a.x, b.y - a.y, b.z - a.z, 1);
         }
 
+        bool IsIntersect(Dot a1, Dot b1, Dot a2, Dot b2)
+        {
+            var res1 = VectorProd(a1, b1, a1, a2);
+            var res2 = VectorProd(a1, b1, a1, b2);
+            return res1 * res2 < 0;
+        }
         float ScalarProd(Dot a, Dot b)
         {
             return (a.x * b.x + a.y * b.y + a.z * b.z);
@@ -86,10 +96,7 @@ namespace AffinTransformation
             var b = Vector(a2, b2);
             return (a.x * b.x + a.y * b.y + a.z * b.z);
         }
-        float VectorProd(float x1, float y1, float x2, float y2)
-        {
-            return x1 * y2 - y1 * x2;
-        }
+
         bool IsIn(int x, int y, Polygon polygon)
         {
             Dot pixel = new Dot(x, y, 0, 1);
@@ -101,60 +108,146 @@ namespace AffinTransformation
 
         bool isIntersect(Dot a1, Dot b1, Dot a2, Dot b2)
         {
-            var prod1 = VectorProd(a1, b1, a1, a2);
-            var prod2 = VectorProd(a1, b1, a1, b2);
-            return prod1 * prod2 < 0;
+            var prod11 = VectorProd(a1, b1, a1, a2);
+            var prod12 = VectorProd(a1, b1, a1, b2);
+            var prod21 = VectorProd(a2, b2, a2, b1);
+            var prod22 = VectorProd(a2, b2, a2, a1);
+            return prod11 * prod12 < 0 && prod21 * prod22 < 0;
+        }
+
+        bool isRondedTriangle(Rectangle r, Polygon pol)
+        {
+            bool a = IsIn(r.X, r.Y, pol),
+                b = IsIn(r.X + r.Width, r.Y, pol),
+                c = IsIn(r.X, r.Y + r.Height, pol),
+                d = IsIn(r.X + r.Width, r.Y + r.Height, pol);
+            return a && b && c && d;
+        }
+
+        bool IsIn(RectangleF large, RectangleF small)
+        {
+            if (large.X <= small.X && large.Y <= small.Y)
+            {
+                if (large.X + large.Width >= small.X + small.Width
+                    && large.Y + large.Height >= small.Y + small.Height)
+                    return true;
+            }
+
+            return false;
+        }
+
+        bool isIntersect(Dot a, Dot b, Polygon pol)
+        {
+            return (isIntersect(a, b, pol.a, pol.b) ||
+                    isIntersect(a, b, pol.b, pol.c) ||
+                    isIntersect(a, b, pol.c, pol.a));
+        }
+
+        float getZ(Polygon poly, float X, float Y)
+        {
+            var depth = poly.normal.h + poly.normal.x * X + poly.normal.y * Y;
+            return depth / -poly.normal.z;
+        }
+
+        bool isIntersect(Rectangle rect, Polygon pol)
+        {
+            Dot a = new Dot(rect.X, rect.Y, 0, 1);
+            Dot b = new Dot(rect.X, rect.Y + rect.Height, 0, 1);
+            Dot d = new Dot(rect.X + rect.Width, rect.Y, 0, 1);
+            Dot c = new Dot(rect.X + rect.Width, rect.Y + rect.Height, 0, 1);
+            return isIntersect(a, b, pol) || isIntersect(b, c, pol) ||
+                   isIntersect(c, d, pol) || isIntersect(d, a, pol);
         }
         private void Iteration()
         {
             var par = _paramsStack.Pop();
             var activePolygons = new List<Polygon>();
+            var roundedPol = new List<Polygon>();
             var rectf = (RectangleF)(par.rect);
             var r = par.rect;
             int halfWidth = r.Width / 2;
             int halfHeight = r.Height / 2;
             foreach (var polyg in par._activePolygons)
             {
-                //check
+                //если пересекаются области
                 if (rectf.IntersectsWith(polyg.rect))
-                    activePolygons.Add(polyg);
+                {
+                    //если область внутри треугольника
+                    if (isRondedTriangle(r, polyg))
+                    {
+                        roundedPol.Add(polyg);
+                        activePolygons.Add(polyg);
+                    }
+                    else
+                    {
+                        //если треугольник целиком внутри области
+                        if (IsIn(rectf, polyg.rect))
+                        {
+                            activePolygons.Add(polyg);
+                        }
+                        else
+                        {
+                            if (isIntersect(r, polyg))
+                            {
+                                activePolygons.Add(polyg);
+                            }
+                        }
+                    }
+                }
             }
 
-            if (activePolygons.Count == 1)
+            if (roundedPol.Count > 0)
             {
                 //check on overloap
-                int intersecCount = 0;
-                var pol = activePolygons[0];
-                bool a = IsIn(r.X, r.Y, pol),
-                    b = IsIn(r.X + r.Width, r.Y, pol),
-                    c = IsIn(r.X, r.Y + r.Height, pol),
-                    d = IsIn(r.X + r.Width, r.Y + r.Height, pol);
-                if ( a && b && c && d)
+                Polygon maxPol = roundedPol[0];
+                bool isRounded = false;
+                float maxza = float.MinValue, maxzb = float.MinValue, maxzc = float.MinValue, maxzd = float.MinValue;
+
+                foreach (var poly in activePolygons)
                 {
-                    var delta = Math.Abs(ScalarProd(new Dot(0, 0, 1, 1), pol.normal));
+                    maxza = Math.Max(getZ(poly, r.X, r.Y), maxza);
+                    maxzb = Math.Max(getZ(poly, r.X + r.Width, r.Y), maxzb);
+                    maxzc = Math.Max(getZ(poly, r.X + r.Width, r.Y + r.Height), maxzc);
+                    maxzd = Math.Max(getZ(poly, r.X, r.Y + r.Height), maxzd);
+                }
+
+                double delt = 0.0005;
+                foreach (var poly in roundedPol)
+                {
+                    if (maxza - getZ(poly, r.X, r.Y) < delt &&
+                        maxzb - getZ(poly, r.X + r.Width, r.Y) < delt &&
+                        maxzc - getZ(poly, r.X + r.Width, r.Y + r.Height) < delt &&
+                        maxzd - getZ(poly, r.X, r.Y + r.Height) < delt)
+                    {
+                        maxPol = poly;
+                        isRounded = true;
+                        continue;
+                    }
+                }
+                if(isRounded)
+                {
+                    var delta = Math.Abs(ScalarProd(new Dot(0, 0, 1, 1), maxPol.normal));
 
                     int R, G, B;
-                    R = (int)(pol.color.R * delta);
-                    G = (int)(pol.color.G * delta);
-                    B = (int)(pol.color.B * delta);
+                    R = (int)(maxPol.color.R * delta);
+                    G = (int)(maxPol.color.G * delta);
+                    B = (int)(maxPol.color.B * delta);
 
                     var color = Color.FromArgb(R, G, B);
                     for (int i = par.rect.X; i < par.rect.X + par.rect.Width; i++)
                         for (int j = par.rect.Y; j < par.rect.Y + par.rect.Height; j++)
                         {
-                            currentMap.SetPixel(i,j, color);
+                            currentMap.SetPixel(i, j, color);
                         }
 
                     return;
                 }
 
             }
-          
 
+            //pixel
             if (activePolygons.Count > 0)
             {
-                
-
                 if (r.Width == 1 && r.Height == 1)
                 {
                     ////paint
@@ -242,9 +335,7 @@ namespace AffinTransformation
             {
                 isIterate = false;
                 return currentMap;
-
             }
-            var a = _paramsStack.Peek();
 
             Iteration();
             return currentMap;
