@@ -278,6 +278,7 @@ namespace AffinTransformation
             }
         }
 
+      
         private void labA_MouseMove(object sender, MouseEventArgs e)
         {
 

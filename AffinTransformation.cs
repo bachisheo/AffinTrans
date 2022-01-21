@@ -5,7 +5,6 @@ using System.Windows.Forms;
 
 namespace AffinTransformation
 {
-
     public static class AffinTransformation
     {
         public static int x0 = 200, y0 = 400, z0 = 0;
